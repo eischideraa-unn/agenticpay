@@ -27,6 +27,8 @@ pub struct Project {
     pub github_repo: String,
     pub description: String,
     pub created_at: u64,
+    /// Unix timestamp deadline. 0 means no deadline.
+    pub deadline: u64,
 }
 
 #[contracttype]
@@ -49,6 +51,9 @@ impl AgenticPayContract {
     }
 
     /// Create a new project with escrow
+    ///
+    /// # Arguments
+    /// * `deadline` - Unix timestamp for the project deadline. Pass 0 for no deadline.
     pub fn create_project(
         env: Env,
         client: Address,
@@ -56,6 +61,7 @@ impl AgenticPayContract {
         amount: i128,
         description: String,
         github_repo: String,
+        deadline: u64,
     ) -> u64 {
         client.require_auth();
 
@@ -76,6 +82,7 @@ impl AgenticPayContract {
             github_repo,
             description,
             created_at: env.ledger().timestamp(),
+            deadline,
         };
 
         env.storage()
@@ -250,6 +257,56 @@ impl AgenticPayContract {
             .set(&DataKey::Project(project_id), &project);
     }
 
+    /// Check if a project's deadline has expired and auto-cancel if so.
+    ///
+    /// If the project has a non-zero deadline that has passed and the project
+    /// is not already completed, cancelled, or disputed, it is automatically
+    /// cancelled and escrow funds are marked for refund to the client.
+    ///
+    /// Anyone can call this function to trigger the check.
+    ///
+    /// Returns `true` if the project was auto-cancelled, `false` otherwise.
+    pub fn check_deadline(env: Env, project_id: u64) -> bool {
+        let mut project: Project = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Project(project_id))
+            .expect("Project not found");
+
+        // No deadline set or already in a terminal state
+        if project.deadline == 0 {
+            return false;
+        }
+        if project.status == ProjectStatus::Completed
+            || project.status == ProjectStatus::Cancelled
+            || project.status == ProjectStatus::Disputed
+        {
+            return false;
+        }
+
+        let now = env.ledger().timestamp();
+        if now < project.deadline {
+            return false;
+        }
+
+        // Deadline expired — auto-cancel and refund escrow
+        // TODO: Transfer deposited funds back to client via Stellar token transfer
+        let refund_amount = project.deposited;
+        project.deposited = 0;
+        project.status = ProjectStatus::Cancelled;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Project(project_id), &project);
+
+        env.events().publish(
+            (symbol_short!("project"), symbol_short!("expired")),
+            (project_id, refund_amount),
+        );
+
+        true
+    }
+
     /// Get project details
     pub fn get_project(env: Env, project_id: u64) -> Project {
         env.storage()
@@ -290,9 +347,150 @@ mod test {
             github_repo: String::from_str(&env, "https://github.com/example/repo"),
             description: String::from_str(&env, "Test project"),
             created_at: env.ledger().timestamp(),
+            deadline: 0,
         };
 
         assert_eq!(project.amount, 1000);
         assert_eq!(project.status, ProjectStatus::Created);
+        assert_eq!(project.deadline, 0);
+    }
+
+    #[test]
+    fn test_check_deadline_no_deadline() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, AgenticPayContract);
+        let client = AgenticPayContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let freelancer = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        let id = client.create_project(
+            &user,
+            &freelancer,
+            &1000,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "https://github.com/test"),
+            &0, // no deadline
+        );
+
+        // Should return false — no deadline set
+        assert!(!client.check_deadline(&id));
+    }
+
+    #[test]
+    fn test_check_deadline_not_expired() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, AgenticPayContract);
+        let client = AgenticPayContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let freelancer = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        // Deadline far in the future
+        let id = client.create_project(
+            &user,
+            &freelancer,
+            &1000,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "https://github.com/test"),
+            &9999999999,
+        );
+
+        assert!(!client.check_deadline(&id));
+        let project = client.get_project(&id);
+        assert_eq!(project.status, ProjectStatus::Created);
+    }
+
+    #[test]
+    fn test_check_deadline_expired_cancels() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, AgenticPayContract);
+        let client = AgenticPayContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let freelancer = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        // Deadline = 1 (already in the past since ledger timestamp starts at 0 in tests)
+        // We need the deadline to be in the past relative to current ledger time
+        let id = client.create_project(
+            &user,
+            &freelancer,
+            &1000,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "https://github.com/test"),
+            &1, // deadline = timestamp 1
+        );
+
+        // Fund the project first
+        client.fund_project(&id, &user, &1000);
+
+        // Advance ledger time past deadline
+        env.ledger().with_mut(|li| {
+            li.timestamp = 100;
+        });
+
+        // Should auto-cancel
+        assert!(client.check_deadline(&id));
+        let project = client.get_project(&id);
+        assert_eq!(project.status, ProjectStatus::Cancelled);
+        assert_eq!(project.deposited, 0);
+    }
+
+    #[test]
+    fn test_check_deadline_already_completed_ignored() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, AgenticPayContract);
+        let client = AgenticPayContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let freelancer = Address::generate(&env);
+
+        client.initialize(&admin);
+
+        let id = client.create_project(
+            &user,
+            &freelancer,
+            &1000,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "https://github.com/test"),
+            &1,
+        );
+
+        // Fund, submit work, approve to complete
+        client.fund_project(&id, &user, &1000);
+        client.submit_work(
+            &id,
+            &freelancer,
+            &String::from_str(&env, "https://github.com/done"),
+        );
+        client.approve_work(&id, &user);
+
+        // Advance past deadline
+        env.ledger().with_mut(|li| {
+            li.timestamp = 100;
+        });
+
+        // Should NOT cancel — already completed
+        assert!(!client.check_deadline(&id));
+        let project = client.get_project(&id);
+        assert_eq!(project.status, ProjectStatus::Completed);
     }
 }
