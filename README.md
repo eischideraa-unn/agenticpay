@@ -41,6 +41,7 @@ Express.js API server providing:
 - **AI Work Verification** — Validates freelancer deliverables against project requirements using AI
 - **AI Invoice Generation** — Automated invoice creation for completed work
 - **Stellar Horizon Integration** — On-chain payment status and transaction lookups
+- **Scheduled Jobs** — Cron-like tasks for background maintenance and monitoring
 
 ## Features
 
@@ -95,6 +96,12 @@ soroban contract deploy --wasm target/wasm32-unknown-unknown/release/agenticpay.
 | `NEXT_PUBLIC_STELLAR_NETWORK` | `testnet` or `public` |
 | `OPENAI_API_KEY` | OpenAI API key for AI verification |
 | `STELLAR_SECRET_KEY` | Server-side Stellar signing key |
+| `JOBS_ENABLED` | Set to `false` to disable scheduled jobs |
+
+### Scheduled Jobs
+
+- Default jobs live under `backend/src/jobs`
+- Job status endpoint: `GET /api/v1/jobs`
 
 ## Network
 
