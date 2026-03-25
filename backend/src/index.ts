@@ -9,7 +9,7 @@ import { stellarRouter } from './routes/stellar.js';
 import { catalogRouter } from './routes/catalog.js';
 import { jobsRouter } from './routes/jobs.js';
 import { healthRouter } from './routes/health.js';
-import { startJobs } from './jobs/index.js';
+import { startJobs, getJobScheduler } from './jobs/index.js';
 
 dotenv.config();
 
@@ -85,8 +85,41 @@ if (jobsEnabled) {
   startJobs();
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`AgenticPay backend running on port ${PORT}`);
 });
+
+// Graceful shutdown
+const shutdown = (signal: string) => {
+  console.log(`${signal} received. Starting graceful shutdown...`);
+  
+  // 1. Stop accepting new requests
+  server.close(() => {
+    console.log('HTTP server closed.');
+    
+    // 2. Stop jobs
+    try {
+      const scheduler = getJobScheduler();
+      if (scheduler) {
+        scheduler.stopAll();
+        console.log('Job scheduler stopped.');
+      }
+    } catch (err) {
+      console.error('Error stopping scheduler:', err);
+    }
+
+    console.log('Graceful shutdown complete. Exiting.');
+    process.exit(0);
+  });
+
+  // Force exit if server.close takes too long (e.g. 10s)
+  setTimeout(() => {
+    console.error('Could not close connections in time, forceful shutdown');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;
