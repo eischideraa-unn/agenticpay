@@ -14,18 +14,20 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Bell, LogOut, User, Settings, Sun, Moon, Clock } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Sun, Moon, Clock, CloudOff, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDisconnect } from 'wagmi';
 import { web3auth } from '@/lib/web3auth';
 import { ThemeSettingsModal } from '@/components/theme/ThemeSettingsModal';
 import { TimezoneSettingsModal } from '@/components/settings/TimezoneSettingsModal';
 import { getBrowserTimeZone, isValidTimeZone } from '@/lib/utils';
+import { useOfflineStatus } from '@/components/offline/OfflineProvider';
 
 export function Header() {
   const { name, email, address, timezone, logout, setTimezone } = useAuthStore();
   const { isDark, mode, setIsDark } = useThemeStore();
   const { disconnect } = useDisconnect();
+  const { isOnline, queueLength, isSyncing } = useOfflineStatus();
   const router = useRouter();
   const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
   const [timezoneSettingsOpen, setTimezoneSettingsOpen] = useState(false);
@@ -81,6 +83,23 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-2">
+            {(!isOnline || queueLength > 0 || isSyncing) && (
+              <div className="hidden sm:flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900">
+                {isSyncing ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CloudOff className="h-3.5 w-3.5" />
+                )}
+                <span>
+                  {isSyncing
+                    ? `Syncing ${queueLength}`
+                    : !isOnline
+                      ? `Offline${queueLength > 0 ? ` - ${queueLength} queued` : ''}`
+                      : `${queueLength} queued`}
+                </span>
+              </div>
+            )}
+
             {/* Notifications */}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
