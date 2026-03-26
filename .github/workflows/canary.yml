@@ -3,7 +3,7 @@ name: Canary Deployment
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/canary-deployment]
 
 jobs:
   canary-10:
