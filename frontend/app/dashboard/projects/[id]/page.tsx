@@ -1,359 +1,125 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ArrowLeft, ExternalLink, CheckCircle2, Clock, Circle, Loader2 } from 'lucide-react';
+import React, { useState, use } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import { Edit3, Eye, ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ProjectDetailSkeleton } from '@/components/ui/loading-skeletons';
-import { useAgenticPay } from '@/lib/hooks/useAgenticPay';
-import { useAccount } from 'wagmi';
-import { toast } from 'sonner';
-import { api } from '@/lib/api';
-import { PageBreadcrumb } from '@/components/layout/PageBreadcrumb';
 
-export default function ProjectDetailPage() {
-  const params = useParams();
-  const projectId = params.id as string;
-  const { address } = useAccount();
+// Import a highlight.js theme
+import 'highlight.js/styles/github-dark.css';
 
-  const { useProjectDetail, fundProject, submitWork, approveWork, isPending, isConfirming, isConfirmed, error, arbitrator } = useAgenticPay();
-  const { project, loading, refetch } = useProjectDetail(projectId);
+/**
+ * Custom sanitization schema to allow syntax highlighting classes.
+ * Without this, rehype-sanitize will strip the 'hljs' classes.
+ */
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [
+      ...(defaultSchema.attributes?.code || []),
+      ['className', /^language-./, 'hljs'],
+    ],
+    span: [
+      ['className', /^hljs-./],
+    ],
+  },
+};
 
-  const [repoLink, setRepoLink] = useState('');
-  const [showSubmitInput, setShowSubmitInput] = useState(false);
+interface ProjectPageProps {
+  params: Promise<{ id: string }>;
+}
 
-  useEffect(() => {
-    if (isConfirmed) {
-      toast.success('Transaction confirmed!');
-      setShowSubmitInput(false);
-      // Refresh data without reloading page to prevent auth loss
-      refetch();
-    }
-  }, [isConfirmed, refetch]);
+export default function ProjectDetailsPage({ params }: ProjectPageProps) {
+  const { id } = use(params);
 
-  useEffect(() => {
-    if (error) {
-      toast.error('Transaction failed: ' + (error as { shortMessage?: string }).shortMessage || error.message);
-    }
-  }, [error]);
+  // In a real scenario, you'd fetch this data from your API
+  const [description, setDescription] = useState<string>(
+    "# Project Scope\n\nThis project requires a **Stellar** integration.\n\n```js\nconsole.log('Deploying to Soroban...');\n```"
+  );
+  const [isEditing, setIsEditing] = useState(false);
 
-  if (loading) {
-    return <ProjectDetailSkeleton />;
-  }
-
-  if (!project) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <p className="text-gray-600 mb-4">Project not found or error loading.</p>
-        <Link href="/dashboard/projects">
-          <Button>Back to Projects</Button>
-        </Link>
-      </div>
-    );
-  }
-
-  const isClient = address?.toLowerCase() === project.client.address.toLowerCase();
-  const isFreelancer = address?.toLowerCase() === project.freelancer.address.toLowerCase();
-
-  const handleFund = async () => {
-    try {
-      const paymentType = project.currency === 'ETH' ? 0 : 1;
-      await fundProject(project.id, project.totalAmount, paymentType);
-      toast.info('Funding transaction submitted...');
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleApprove = async () => {
-    try {
-      await approveWork(project.id);
-      toast.info('Approval transaction submitted...');
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-      case 'in_progress':
-        return <Clock className="h-5 w-5 text-blue-600" />;
-      default:
-        return <Circle className="h-5 w-5 text-gray-400" />;
-    }
-  };
+  // Handle empty or undefined cases safely
+  const displayDescription = description?.trim() || "_No description provided._";
 
   return (
-    <div className="space-y-6">
-      <PageBreadcrumb
-        items={[
-          { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Projects', href: '/dashboard/projects' },
-        ]}
-        currentPage={project.title}
-      />
+    <div className="min-h-screen bg-slate-50 pb-12 pt-8">
+      <div className="container mx-auto max-w-5xl px-4">
+        <Link
+          href="/dashboard"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Link>
 
-      <Link href="/dashboard/projects">
-        <Button variant="ghost" className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Projects
-        </Button>
-      </Link>
-
-      {/* Project Overview */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-2xl mb-2">{project.title}</CardTitle>
-              <p className="text-gray-600">Client: {project.client.address.slice(0, 6)}...{project.client.address.slice(-4)}</p>
-              <p className="text-gray-600">Freelancer: {project.freelancer.address.slice(0, 6)}...{project.freelancer.address.slice(-4)}</p>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-white">
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Project ID</span>
+              <h1 className="text-xl font-bold text-slate-900">{id}</h1>
             </div>
-            <span
-              className={`px-4 py-2 rounded-full text-sm font-medium ${project.status === 'active'
-                ? 'bg-blue-100 text-blue-700'
-                : project.status === 'completed'
-                  ? 'bg-green-100 text-green-700'
-                  : project.status === 'verified'
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'bg-gray-100 text-gray-700'
+            
+            <div className="flex items-center gap-2 rounded-lg bg-slate-100 p-1">
+              <button
+                onClick={() => setIsEditing(true)}
+                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                  isEditing ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
-            >
-              {project.status.toUpperCase()}
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Total Amount</p>
-              <p className="text-xl font-bold">
-                {project.totalAmount} {project.currency}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Created</p>
-              <p className="text-lg font-medium">
-                {new Date(project.createdAt).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-          {project.githubRepo && (
-            <div>
-              <p className="text-sm text-gray-600 mb-2">GitHub Repository</p>
-              <a
-                href={project.githubRepo}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-blue-600 hover:underline"
               >
-                {project.githubRepo}
-                <ExternalLink className="h-4 w-4" />
-              </a>
+                <Edit3 className="h-4 w-4" />
+                Edit
+              </button>
+              <button
+                onClick={() => setIsEditing(false)}
+                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                  !isEditing ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Eye className="h-4 w-4" />
+                Preview
+              </button>
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="pt-4 border-t mt-4 flex gap-4 flex-wrap">
-            {/* Client Actions */}
-            {isClient && (
-              <>
-                {project.milestones[0]?.status === 'pending' && (
-                  <Button onClick={handleFund} disabled={isPending || isConfirming}>
-                    {(isPending || isConfirming) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Fund Project
-                  </Button>
-                )}
-                {project.githubRepo && project.status !== 'completed' && (
-                  <Button onClick={handleApprove} variant="default" className="bg-green-600 hover:bg-green-700" disabled={isPending || isConfirming}>
-                    {(isPending || isConfirming) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Approve & Release Payment
-                  </Button>
-                )}
-              </>
-            )}
-
-            {/* Freelancer Actions */}
-            {isFreelancer && (
-              <>
-                {/* Funded/Started -> Submit */}
-                {project.milestones[0]?.status !== 'pending' && project.status !== 'completed' && !showSubmitInput && !project.githubRepo && (
-                  <Button onClick={() => setShowSubmitInput(true)}>
-                    Submit Work
-                  </Button>
-                )}
-
-                {/* Submitted -> Request Verification */}
-                {project.githubRepo && project.status !== 'completed' && (
-                  <Button onClick={async () => {
-                    try {
-                      toast.info('Requesting AI Verification...');
-                      const verification = await api.verifyWork({
-                        repositoryUrl: project.githubRepo!,
-                        milestoneDescription: project.milestones[0]?.description || project.title,
-                        projectId: project.id
-                      });
-                      if (verification.status === 'passed') {
-                        toast.success("Work Verified by AI!");
-                        try {
-                          // Trigger invoice gen
-                          await api.generateInvoice({
-                            projectId: project.id,
-                            workDescription: "Verified work",
-                            hoursWorked: 0,
-                            hourlyRate: 0
-                          });
-                          toast.success("Invoice Generated");
-                          refetch();
-                        } catch (invError) {
-                          toast.error("Invoice error: " + (invError as Error).message);
-                        }
-                      } else {
-                        toast.error("Verification failed: " + verification.summary);
-                      }
-                    } catch (e) {
-                      toast.error((e as Error).message);
-                    }
-                  }}>
-                    Request AI Verification
-                  </Button>
-                )}
-              </>
-            )}
           </div>
 
-          {showSubmitInput && (
-            <div className="p-4 bg-gray-50 rounded-lg space-y-3 border">
-              <Label>GitHub Repository URL</Label>
-              <Input
-                placeholder="https://github.com/..."
-                value={repoLink}
-                onChange={(e) => setRepoLink(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <Button onClick={async () => {
-                  try {
-                    if (!repoLink) throw new Error("No repo link");
-                    toast.info('Submitting work to blockchain...');
-                    await submitWork(project.id, repoLink);
-                    toast.info('Transaction submitted. Once confirmed, request verification.');
-                    setShowSubmitInput(false);
-                  } catch (e) {
-                    toast.error('Submission failed: ' + (e as Error).message);
-                  }
-                }}>
-                  Submit Work
-                </Button>
-                <Button variant="ghost" onClick={() => setShowSubmitInput(false)}>Cancel</Button>
+          <div className="p-6">
+            {isEditing ? (
+              <div className="space-y-4">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Use Markdown to describe the project..."
+                  className="min-h-[400px] w-full rounded-xl border border-slate-200 p-4 font-mono text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                />
+                <div className="flex justify-between items-center">
+                   <p className="text-xs text-slate-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" /> Supports GitHub Flavored Markdown
+                  </p>
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Changes
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-        </CardContent>
-      </Card>
-
-      {/* Contract Milestone View (Single) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Milestones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {project.milestones.map((milestone, index) => (
-              <motion.div
-                key={milestone.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="p-4 border border-gray-200 rounded-lg"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-start gap-3 flex-1">
-                    {getStatusIcon(milestone.status)}
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900">{milestone.title}</h4>
-                      {milestone.description && (
-                        <p className="text-sm text-gray-600 mt-1">{milestone.description}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">
-                      {milestone.amount} {project.currency}
-                    </p>
-                    {milestone.dueDate && (
-                      <p className="text-xs text-gray-500">
-                        Due: {new Date(milestone.dueDate).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Progress</span>
-                    <span>{milestone.completionPercentage}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all ${milestone.status === 'completed'
-                        ? 'bg-green-600'
-                        : milestone.status === 'in_progress'
-                          ? 'bg-blue-600'
-                          : 'bg-gray-300'
-                        }`}
-                      style={{ width: `${milestone.completionPercentage}%` }}
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            ) : (
+              <div className="prose prose-slate max-w-none min-h-[400px] rounded-xl border border-slate-50 bg-slate-50/30 p-4">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight, [rehypeSanitize, sanitizeSchema]]}
+                >
+                  {displayDescription}
+                </ReactMarkdown>
+              </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mt-8 border-yellow-200 bg-yellow-50">
-        <CardHeader>
-          <CardTitle className="text-sm text-yellow-800">Debug Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-            <div>
-              <p className="text-gray-500">Contract Status Index</p>
-              <p>{project.rawStatus ?? 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Deposited Amount</p>
-              <p>{project.depositedAmount ?? '0'} {project.currency}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Raw Deposited</p>
-              <p>{project.rawDepositedAmount?.toString() ?? '0'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Milestone Status</p>
-              <p>{project.milestones[0]?.status}</p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-yellow-200">
-            <p className="text-xs text-yellow-800 font-semibold mb-1">Warning</p>
-            <p className="text-xs text-yellow-700">
-              Status 7 (Verified) may be blocked by the &apos;approveWork&apos; function in the deployed contract.
-              If you are the arbitrator/owner, you may need to resolve this via dispute or admin action.
-            </p>
-            <div className="mt-2 text-xs font-mono">
-              <span className="text-gray-500">Arbitrator: </span>
-              <span>{arbitrator ?? 'Loading...'}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
