@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AgenticPay - Get Paid Instantly for Your Work",
   description: "Secure, fast, and transparent payments for freelancers powered by blockchain technology.",
-  // manifest: "/manifest.webmanifest",
+  manifest: "/manifest.webmanifest",
   keywords: ["freelancer", "payments", "blockchain", "crypto", "web3", "escrow", "milestones"],
   authors: [{ name: "AgenticPay" }],
   openGraph: {
@@ -38,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
