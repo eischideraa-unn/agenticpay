@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiCall } from './client';
+import { apiCall } from './client';
 import { OfflineActionQueuedError } from '../offline';
 
 describe('apiCall', () => {

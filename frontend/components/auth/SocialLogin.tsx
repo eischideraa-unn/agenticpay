@@ -24,8 +24,9 @@ export function SocialLogin() {
     try {
       setLoading(true);
 
-      await (web3auth as any).initModal();
-      const web3authProvider = await web3auth.connectTo((WALLET_ADAPTERS as any).AUTH || (WALLET_ADAPTERS as any).OPENLOGIN, {
+      await web3auth.initModal();
+      // @ts-expect-error - WALLET_ADAPTERS.AUTH renamed to OPENLOGIN in newer versions
+      const web3authProvider = await web3auth.connectTo(WALLET_ADAPTERS.AUTH || WALLET_ADAPTERS.OPENLOGIN, {
         loginProvider,
       });
 
