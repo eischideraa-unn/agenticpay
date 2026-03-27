@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useRouter, usePathname } from 'next/navigation';
 import { useThemeStore } from '@/store/useThemeStore';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,7 +16,6 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Bell, LogOut, User, Settings, Sun, Moon, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { useEffect, useState } from 'react';
 // 1. I added useNetwork to the existing wagmi import
 import { useDisconnect, useAccount } from 'wagmi';
 import { web3auth } from '@/lib/web3auth';
@@ -157,8 +155,6 @@ export function Header() {
               </DropdownMenu>
             </div>
           </div>
-        </div>
-      </div>
 
       {/* Breadcrumb Navigation */}
       {breadcrumbs.length > 0 && (
