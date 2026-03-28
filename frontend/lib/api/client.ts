@@ -88,15 +88,16 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 function normalizeError(error: unknown): Error {
   if (error instanceof Error) return error;
 
+  // Use unknown type guards instead of any
   const message =
-    typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string'
-      ? (error as any).message
+    typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+      ? (error as { message?: string }).message
       : String(error);
 
   const normalized = new Error(message);
 
-  if (typeof error === 'object' && error !== null && 'name' in error && typeof (error as any).name === 'string') {
-    normalized.name = (error as any).name;
+  if (typeof error === 'object' && error !== null && 'name' in error && typeof (error as { name?: unknown }).name === 'string') {
+    normalized.name = (error as { name?: string }).name!;
   }
 
   return normalized;
@@ -122,8 +123,13 @@ async function parseResponseBody(response: Response): Promise<unknown> {
    Friendly Error Messages
 ===================================================== */
 function getErrorMessage(status: number, statusText: string, data: unknown): string {
-  if (data && typeof data === 'object' && 'message' in data && typeof (data as any).message === 'string') {
-    return (data as any).message;
+  if (
+    data &&
+    typeof data === 'object' &&
+    'message' in data &&
+    typeof (data as { message?: unknown }).message === 'string'
+  ) {
+    return (data as { message: string }).message;
   }
 
   switch (status) {
@@ -181,7 +187,7 @@ export async function apiCall<T = unknown>(
       if (response.ok) return data as T;
 
       throw new ApiError(getErrorMessage(response.status, response.statusText, data), response.status, response, data);
-    } catch (error) {
+    } catch (error: unknown) {
       lastError = normalizeError(error);
 
       // Debug logging

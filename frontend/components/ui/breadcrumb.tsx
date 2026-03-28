@@ -52,19 +52,31 @@ const BreadcrumbItem = React.forwardRef<
 ));
 BreadcrumbItem.displayName = 'BreadcrumbItem';
 
-type BreadcrumbLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+/* ✅ FIXED TYPES HERE */
+type BreadcrumbLinkProps = {
   asChild?: boolean;
   href: string;
-};
+} & Omit<React.ComponentProps<typeof Link>, 'href'>;
 
 const BreadcrumbLink = React.forwardRef<
   HTMLAnchorElement,
   BreadcrumbLinkProps
 >(({ className, href, asChild = false, ...props }, ref) => {
-  const Comp: any = asChild ? Slot : Link;
+  if (asChild) {
+    return (
+      <Slot
+        ref={ref}
+        className={cn(
+          'text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors cursor-pointer',
+          className
+        )}
+        {...props}
+      />
+    );
+  }
 
   return (
-    <Comp
+    <Link
       ref={ref}
       href={href}
       className={cn(
