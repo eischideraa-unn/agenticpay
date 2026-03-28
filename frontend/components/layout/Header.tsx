@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useRouter, usePathname } from 'next/navigation';
 import { useThemeStore } from '@/store/useThemeStore';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,11 +14,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Bell, LogOut, User, Settings, Sun, Moon, Clock } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Sun, Moon, Clock, CloudOff, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDisconnect, useAccount } from 'wagmi';
 import { web3auth } from '@/lib/web3auth';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { getDashboardBreadcrumbs } from '@/lib/breadcrumbs';
 import { ThemeSettingsModal } from '@/components/theme/ThemeSettingsModal';
+import { TimezoneSettingsModal } from '@/components/settings/TimezoneSettingsModal';
+import { getBrowserTimeZone, isValidTimeZone } from '@/lib/utils';
 
 const NetworkIndicator = () => {
   const { chain, isConnected } = useAccount();
@@ -49,11 +59,27 @@ const NetworkIndicator = () => {
 };
 
 export function Header() {
-  const { name, email, address, logout } = useAuthStore();
-  const { isDark, mode, toggle, setIsDark } = useThemeStore();
+  const { name, email, address, timezone, logout, setTimezone } = useAuthStore();
+  const { isDark, mode, setIsDark } = useThemeStore();
   const { disconnect } = useDisconnect();
   const router = useRouter();
+  const pathname = usePathname();
+  const [breadcrumbs, setBreadcrumbs] = useState<any[]>([]);
   const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const [timezoneSettingsOpen, setTimezoneSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    const items = getDashboardBreadcrumbs(pathname);
+    setBreadcrumbs(items);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (timezone) return;
+    const detectedTimeZone = getBrowserTimeZone();
+    if (detectedTimeZone && isValidTimeZone(detectedTimeZone)) {
+      setTimezone(detectedTimeZone);
+    }
+  }, [setTimezone, timezone]);
 
   const handleLogout = async () => {
     disconnect();
@@ -165,9 +191,9 @@ export function Header() {
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTimezoneSettingsOpen(true)}>
                     <Settings className="mr-2 h-4 w-4" />
-                    Settings
+                    Timezone Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">
@@ -179,9 +205,32 @@ export function Header() {
             </div>
           </div>
         </div>
+
+        {breadcrumbs.length > 0 && (
+          <div className="border-t border-gray-100 bg-gray-50/50 px-4 sm:px-6 py-3">
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumbs.map((item, index) => (
+                  <div key={index} className="flex items-center gap-1.5">
+                    <BreadcrumbItem>
+                      <BreadcrumbLink href={item.href}>
+                        {item.label}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
+                  </div>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+        )}
       </header>
 
       <ThemeSettingsModal open={themeSettingsOpen} onClose={() => setThemeSettingsOpen(false)} />
+      <TimezoneSettingsModal
+        open={timezoneSettingsOpen}
+        onClose={() => setTimezoneSettingsOpen(false)}
+      />
     </>
   );
 }
