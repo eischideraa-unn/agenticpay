@@ -75,9 +75,16 @@ export function Header() {
   const { name, email, address, timezone, logout, setTimezone } = useAuthStore();
   const { isDark, mode, setIsDark } = useThemeStore();
   const { disconnect } = useDisconnect();
-  const { isOnline, queueLength, isSyncing } = useOfflineStatus();
   const router = useRouter();
   const pathname = usePathname();
+  const [breadcrumbs, setBreadcrumbs] = useState<any[]>([]);
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const [timezoneSettingsOpen, setTimezoneSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    const items = getDashboardBreadcrumbs(pathname);
+    setBreadcrumbs(items);
+  }, [pathname]);
 
   const breadcrumbs = getDashboardBreadcrumbs(pathname);
 
@@ -123,6 +130,8 @@ export function Header() {
 
           <div className="flex items-center gap-4">
             <NetworkIndicator />
+
+            <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               {(!isOnline || queueLength > 0 || isSyncing) && (
                 <div className="hidden sm:flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900">
@@ -170,6 +179,20 @@ export function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={mode === 'manual' ? handleManualToggle : undefined}
+                title={
+                  mode === 'manual'
+                    ? isDark
+                      ? 'Switch to light mode'
+                      : 'Switch to dark mode'
+                    : `Auto: ${mode} mode`
+                }
+                className="relative"
+              >
+                {isDark ? (
+                  <Moon className="h-5 w-5 transition-transform duration-300" />
+                ) : (
+                  <Sun className="h-5 w-5 transition-transform duration-300" />
+                )}
                 className="relative"
               >
                 {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
@@ -180,6 +203,12 @@ export function Header() {
                 )}
               </Button>
 
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setThemeSettingsOpen(true)}
+                title="Dark mode schedule"
+              >
               <Button variant="ghost" size="icon" onClick={() => setThemeSettingsOpen(true)}>
                 <Clock className="h-5 w-5" />
               </Button>
@@ -193,6 +222,9 @@ export function Header() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden sm:block text-left">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {name || 'User'}
+                      </p>
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{name || 'User'}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{shortAddress}</p>
                     </div>
@@ -207,6 +239,18 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTimezoneSettingsOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Timezone Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
                   <DropdownMenuItem><User className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setTimezoneSettingsOpen(true)}>
                     <Settings className="mr-2 h-4 w-4" />Timezone Settings
@@ -240,6 +284,7 @@ export function Header() {
           </div>
         )}
       </header>
+
       <ThemeSettingsModal open={themeSettingsOpen} onClose={() => setThemeSettingsOpen(false)} />
       <TimezoneSettingsModal
         open={timezoneSettingsOpen}
