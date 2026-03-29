@@ -171,7 +171,6 @@ export async function apiCall<T = unknown>(
     throw new OfflineActionQueuedError(
       'You are offline. This action has been queued and will sync when the connection returns.',
       endpoint,
-      // @ts-expect-error - action.id may not be correctly typed
       action.id
     );
   }
