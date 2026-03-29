@@ -167,7 +167,6 @@ export async function apiCall<T = unknown>(
 
   // Queue immediately if offline
   if (shouldQueue && typeof navigator !== 'undefined' && navigator.onLine === false) {
-    // @ts-expect-error - Bypassing type check for offline action queueing
     const action = queueOfflineAction(endpoint, options);
     throw new OfflineActionQueuedError(
       'You are offline. This action has been queued and will sync when the connection returns.',
