@@ -16,6 +16,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Bell, LogOut, User, Settings, Sun, Moon, Clock, CloudOff, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { LanguageSwitcher } from '@/components/language/LanguageSwitcher';
 import { useDisconnect, useAccount } from 'wagmi';
 import { web3auth } from '@/lib/web3auth';
 import {
@@ -29,7 +30,19 @@ import { getDashboardBreadcrumbs } from '@/lib/breadcrumbs';
 import { ThemeSettingsModal } from '@/components/theme/ThemeSettingsModal';
 import { TimezoneSettingsModal } from '@/components/settings/TimezoneSettingsModal';
 import { getBrowserTimeZone, isValidTimeZone } from '@/lib/utils';
+import { useOfflineStatus } from '@/components/offline/OfflineProvider';
 
+// Our new CommandMenu!
+import { CommandMenu } from './CommandMenu';
+
+// I built the isolated NetworkIndicator component right here
+/* ---------------- TYPES ---------------- */
+type BreadcrumbItemType = {
+  label: string;
+  href: string;
+};
+
+/* ---------------- NETWORK INDICATOR ---------------- */
 const NetworkIndicator = () => {
   const { chain, isConnected } = useAccount();
 
@@ -73,6 +86,11 @@ export function Header() {
     setBreadcrumbs(items);
   }, [pathname]);
 
+  const breadcrumbs = getDashboardBreadcrumbs(pathname);
+
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const [timezoneSettingsOpen, setTimezoneSettingsOpen] = useState(false);
+
   useEffect(() => {
     if (timezone) return;
     const detectedTimeZone = getBrowserTimeZone();
@@ -97,17 +115,8 @@ export function Header() {
     document.documentElement.classList.toggle('dark', next);
   };
 
-  const initials =
-    name
-      ?.split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2) || 'U';
-
-  const shortAddress = address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : 'Not connected';
+  const initials = name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+  const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
 
   return (
     <>
@@ -123,6 +132,44 @@ export function Header() {
             <NetworkIndicator />
 
             <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              {(!isOnline || queueLength > 0 || isSyncing) && (
+                <div className="hidden sm:flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900">
+                  {isSyncing ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CloudOff className="h-3.5 w-3.5" />
+                  )}
+                  <span>
+                    {isSyncing
+                      ? `Syncing ${queueLength}`
+                      : !isOnline
+                        ? `Offline${queueLength > 0 ? ` - ${queueLength} queued` : ''}`
+                        : `${queueLength} queued`}
+                  </span>
+                </div>
+            
+            <CommandMenu />
+
+            {/* Notifications */}
+            <Button variant="ghost" size="icon">
+              <Bell className="h-5 w-5" />
+            </Button>
+
+            {/* Theme */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={mode === 'manual' ? handleManualToggle : undefined}
+            >
+              {isDark ? (
+                <Moon className="h-5 w-5" />
+              ) : (
+                <Sun className="h-5 w-5" />
+              )}
+
+              <LanguageSwitcher />
+
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
@@ -146,6 +193,9 @@ export function Header() {
                 ) : (
                   <Sun className="h-5 w-5 transition-transform duration-300" />
                 )}
+                className="relative"
+              >
+                {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                 {mode !== 'manual' && (
                   <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-primary flex items-center justify-center">
                     <Clock className="h-2 w-2 text-primary-foreground" />
@@ -159,6 +209,7 @@ export function Header() {
                 onClick={() => setThemeSettingsOpen(true)}
                 title="Dark mode schedule"
               >
+              <Button variant="ghost" size="icon" onClick={() => setThemeSettingsOpen(true)}>
                 <Clock className="h-5 w-5" />
               </Button>
 
@@ -174,6 +225,7 @@ export function Header() {
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {name || 'User'}
                       </p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{name || 'User'}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{shortAddress}</p>
                     </div>
                   </Button>
@@ -199,6 +251,13 @@ export function Header() {
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
+                  <DropdownMenuItem><User className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTimezoneSettingsOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4" />Timezone Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                    <LogOut className="mr-2 h-4 w-4" />Logout
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
