@@ -87,7 +87,7 @@ describe('apiCall', () => {
 
     global.fetch = fetchMock as typeof fetch;
 
-    await expect(apiCall('/health')).rejects.toMatchObject<ApiError>({
+    await expect(apiCall('/health')).rejects.toMatchObject({
       name: 'ApiError',
       status: 400,
       message: 'Bad request',
@@ -96,12 +96,17 @@ describe('apiCall', () => {
   });
 
   it('does not retry aborted requests', async () => {
+    // Use real timers to avoid timeout
+    vi.useRealTimers();
+
     const abortError = new DOMException('The operation was aborted.', 'AbortError');
     const fetchMock = vi.fn().mockRejectedValue(abortError);
 
     global.fetch = fetchMock as typeof fetch;
 
-    await expect(apiCall('/health')).rejects.toMatchObject({
+    await expect(
+      apiCall('/health', {}, { maxRetries: 0 }) // prevent retry delays
+    ).rejects.toMatchObject({
       name: 'AbortError',
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
